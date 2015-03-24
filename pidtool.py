@@ -79,26 +79,32 @@ def grab_data(options):
 
     for sample in locations:
         output = options.output +'/{particle}_Stripping{stripping}_Magnet{magnet}.root'.format(**sample)
+        # Create empty ROOT file
         ff = TFile(output, 'recreate')
         ff.Close()
         for input in sample['paths']:
             logging.info('Opening file {}'.format(input))
             f = TFile.Open(input)
+            ROOT.SetOwnership(f, False)
             ws = f.Get(f.GetListOfKeys().First().GetName())
             ROOT.SetOwnership(ws, False)
-            data = ws.allData().front()
+            datalist = ws.allData()
+            data = datalist.front()
+            ROOT.SetOwnership(data, False)
             ROOT.RooAbsData.setDefaultStorageType(ROOT.RooAbsData.Tree)
-            ff = TFile(output, 'update')
+            ROOT.SetOwnership(ff, False)
             dset = ROOT.RooDataSet('tree', 'tree', data.get(), ROOT.RooFit.Import(data))
+            ROOT.SetOwnership(dset, False)
+            data.Delete()
+            f.Close()
+
+            ff = TFile(output, 'update')
             logging.info('Saving data to {}'.format(output))
-            dset.tree().Write('tree')
+            tree = dset.tree()
+            tree.Write('tree')
+            #ws.Delete()
+            dset.Delete()
             ff.Close()
-            try:
-                # Sometimes, RooFit will segfault when cleaning up :)
-                ws.Delete()
-            except:
-                from IPython import embed
-                embed()
 
 def create_resamplers(options):
     import os.path
@@ -174,6 +180,7 @@ def resample_branch(options):
 
 with open('raw_data.json') as configfile:
     locations = json.load(configfile)
+
 particle_set = set([sample["particle"] for sample in locations])
 
 parser = argparse.ArgumentParser()
