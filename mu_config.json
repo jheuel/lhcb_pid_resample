@@ -1,0 +1,28 @@
+{
+    "tasks": [
+        {
+            "particle" : "Mu",
+            "resampler_path" : "./Mu_Stripping20_MagnetDown.pkl",
+            "features" : ["mu1_P", "mu1_ETA", "nTracks"],
+            "pids" : [{"kind" : "Mu_CombDLLK", "name" : "DLLKpi_mu1_corrected"}, {"kind":"Mu_CombDLLmu", "name":"DLLMupi_mu1_corrected"}]
+        },
+                {
+            "particle" : "Mu",
+            "resampler_path" : "./Mu_Stripping20_MagnetDown.pkl",
+            "features" : ["mu2_P", "mu2_ETA", "nTracks"],
+            "pids" : [{"kind" : "Mu_CombDLLK", "name" : "DLLKpi_mu2_corrected"}, {"kind":"Mu_CombDLLmu", "name":"DLLMupi_mu2_corrected"}]
+        },
+                {
+            "particle" : "Mu",
+            "resampler_path" : "./Mu_Stripping20_MagnetDown.pkl",
+            "features" : ["mu3_P", "mu3_ETA", "nTracks"],
+            "pids" : [{"kind" : "Mu_CombDLLK", "name" : "DLLKpi_mu3_corrected"}, {"kind":"Mu_CombDLLmu", "name":"DLLMupi_mu3_corrected"}]
+        },
+                {
+            "particle" : "Mu",
+            "resampler_path" : "./Mu_Stripping20_MagnetDown.pkl",
+            "features" : ["mu4_P", "mu4_ETA", "nTracks"],
+            "pids" : [{"kind" : "Mu_CombDLLK", "name" : "DLLKpi_mu4_corrected"}, {"kind":"Mu_CombDLLmu", "name":"DLLMupi_mu4_corrected"}]
+        }
+        ]
+}
