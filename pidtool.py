@@ -340,9 +340,15 @@ def resample_branch(options):
     #             if 'Trafo' in pid["name"]:
     #                 data[pid["name"].replace("Trafo", "Untrafo")] = back_transform(data[pid["name"]])
 
+    # t_name = options.tree.split('/')[-1]
+
     logging.info('Writing output...')
     f = R.TFile(options.source_file, 'UPDATE')
     t = f.Get(options.tree)
+    if '/' in options.tree:
+        t_path = options.tree.split('/')[:-1]
+        t_dir = f.Get("/".join(t_path))
+        t_dir.cd()
     print(data[pid_names].tail())
     array2tree(data[pid_names].to_records(index=False), tree=t, name=options.tree)
     t.Write()
