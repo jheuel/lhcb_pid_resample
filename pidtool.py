@@ -306,8 +306,11 @@ def resample_branch(options):
             pid_names.append(pid["name"])
             if options.transform and 'Trafo' in pid["name"]:
                 pid_names.append(pid["name"].replace("Trafo", "Untrafo"))
-    if any([pid_name in list_branches(options.source_file, treename=options.tree) for pid_name in pid_names]):
-        raise Exception('Branches exist - resampling seems already to be done.')
+    if any(
+        [pid_name in list_branches(options.source_file, treename=options.tree)
+            for pid_name in pid_names]):
+        raise Exception(
+            'Branches exist - resampling seems already to be done.')
 
     logging.info('Resampling {} events...'.format(len(data)))
 
@@ -320,10 +323,6 @@ def resample_branch(options):
         for pid in task["pids"]:
             var_name.append(pid['name'])
             args.append((pid["resampler"], deps.values.T))
-            # if options.num_cpu == 1:
-            #     data[pid["name"]] = pid["resampler"].sample(deps.values.T)
-            # else:
-            #     resample_parallel(data, pid["name"], deps, options.num_cpu, pid["resampler"])
 
     resampled = p.map_async(resample_thread, args).get()
 
@@ -331,16 +330,8 @@ def resample_branch(options):
         data[var] = resampled[idx]
         if 'Trafo' in pid["name"] and options.transform:
             logging.info('Back trafo for {}'.format(var))
-            data[var.replace("Trafo", "Untrafo")] = back_transform(resampled[idx])
-
-    # if options.transform:
-    #     logging.info('Back transfroming ProbNNs...')
-    #     for task in config["tasks"]:
-    #         for pid in task["pids"]:
-    #             if 'Trafo' in pid["name"]:
-    #                 data[pid["name"].replace("Trafo", "Untrafo")] = back_transform(data[pid["name"]])
-
-    # t_name = options.tree.split('/')[-1]
+            data[var.replace("Trafo", "Untrafo")] = back_transform(
+                resampled[idx])
 
     logging.info('Writing output...')
     f = R.TFile(options.source_file, 'UPDATE')
@@ -350,7 +341,8 @@ def resample_branch(options):
         t_dir = f.Get("/".join(t_path))
         t_dir.cd()
     print(data[pid_names].tail())
-    array2tree(data[pid_names].to_records(index=False), tree=t, name=options.tree)
+    array2tree(data[pid_names].to_records(index=False),
+               tree=t, name=options.tree)
     t.Write()
     f.Close()
 
@@ -373,8 +365,10 @@ def resample_parallel(data, name, deps, num_cpu, res):
         else:
             stop = start + int(len(data) / num_cpu)
         ar = np.array([0]*(stop-start))
-        logging.info('Starting thread for events {s} to {e}'.format(s=start, e=stop))
-        t = mp.Process(target=resample_thread, args=(deps, start, stop, res.copy(), ar, ))
+        logging.info('Starting thread for events {s} to {e}'.format(s=start,
+                                                                    e=stop))
+        t = mp.Process(target=resample_thread, args=(deps, start, stop,
+                                                     res.copy(), ar, ))
         t.start()
         threads.append(t)
         arrays.append(ar)
