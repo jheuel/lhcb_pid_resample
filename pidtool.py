@@ -272,9 +272,30 @@ def resample_branch(options):
     import pickle
     from root_numpy import tree2array, array2tree, list_branches
     from root_pandas import read_root
+    from pandas import DataFrame
 
+    logging.info('Starting resampling for {}'.format(
+        options.source_file
+    ))
+
+    logging.info('Loading config...')
     with open(options.configfile) as f:
         config = json.load(f)
+
+    branches_in_file = list_branches(
+        options.source_file, treename=options.tree)
+
+    logging.info('Checking tasks...')
+    pid_names = []
+    for task in config["tasks"]:
+        for pid in task["pids"]:
+            pid_names.append(pid["name"])
+            if options.transform and 'Trafo' in pid["name"]:
+                pid_names.append(pid["name"].replace("Trafo", "Untrafo"))
+
+    if all([pid_name in branches_in_file for pid_name in pid_names]):
+        raise Exception(
+            'Branches exist - resampling seems already to be done.')
 
     logging.info('Loading resamplers...')
     # load resamplers into config dictionary
@@ -295,43 +316,48 @@ def resample_branch(options):
 
     needed_branches = [f for task in config["tasks"] for f in task['features']]
 
-    logging.info('Loading data...')
-    data = read_root(
-        options.source_file, options.tree, columns=needed_branches
-    )
-    pid_names = []
+    logging.info('Starting resampling...')
 
-    for task in config["tasks"]:
-        for pid in task["pids"]:
-            pid_names.append(pid["name"])
-            if options.transform and 'Trafo' in pid["name"]:
-                pid_names.append(pid["name"].replace("Trafo", "Untrafo"))
-    if any(
-        [pid_name in list_branches(options.source_file, treename=options.tree)
-            for pid_name in pid_names]):
-        raise Exception(
-            'Branches exist - resampling seems already to be done.')
+    resampled_data = DataFrame()
 
-    logging.info('Resampling {} events...'.format(len(data)))
+    chunksize = 300000
+    for i, chunk in enumerate(read_root(options.source_file, options.tree,
+                                        columns=needed_branches,
+                                        chunksize=chunksize)):
 
-    p = mp.Pool(processes=options.num_cpu)
-    var_name = []
-    args = []
+        resampled_data_chunk = DataFrame()
+        p = mp.Pool(processes=options.num_cpu)
+        var_name = []
+        args = []
 
-    for task in config["tasks"]:
-        deps = data[task["features"]]
-        for pid in task["pids"]:
-            var_name.append(pid['name'])
-            args.append((pid["resampler"], deps.values.T))
+        for task in config["tasks"]:
+            deps = chunk[task["features"]]
+            for pid in task["pids"]:
+                if not pid['name'] in branches_in_file:
+                    var_name.append(pid['name'])
+                    args.append((pid["resampler"], deps.values.T))
+                else:
+                    logging.info('Skpping {}, branch already exists'.format(
+                        pid['name']))
 
-    resampled = p.map_async(resample_thread, args).get()
+        resampled = p.map_async(resample_thread, args).get()
 
-    for idx, var in enumerate(var_name):
-        data[var] = resampled[idx]
-        if 'Trafo' in pid["name"] and options.transform:
-            logging.info('Back trafo for {}'.format(var))
-            data[var.replace("Trafo", "Untrafo")] = back_transform(
-                resampled[idx])
+        for idx, var in enumerate(var_name):
+            resampled_data_chunk[var] = resampled[idx]
+            if 'Trafo' in pid["name"] and options.transform:
+                logging.info('Back trafo for {}'.format(var))
+                resampled_data_chunk[var.replace("Trafo", "Untrafo")] = \
+                    back_transform(resampled[idx])
+
+        logging.info('Processed {} entries'.format((i+1) * chunksize))
+        resampled_data = resampled_data.append(resampled_data_chunk,
+                                               ignore_index=True)
+
+        # close the pool, wait for the precesses to end and then
+        # terminate them
+        p.close()
+        p.join()
+        p.terminate()
 
     logging.info('Writing output...')
     f = R.TFile(options.source_file, 'UPDATE')
@@ -340,8 +366,8 @@ def resample_branch(options):
         t_path = options.tree.split('/')[:-1]
         t_dir = f.Get("/".join(t_path))
         t_dir.cd()
-    print(data[pid_names].tail())
-    array2tree(data[pid_names].to_records(index=False),
+    print(resampled_data[pid_names].tail())
+    array2tree(resampled_data[pid_names].to_records(index=False),
                tree=t, name=options.tree)
     t.Write()
     f.Close()
@@ -349,41 +375,6 @@ def resample_branch(options):
 
 def resample_thread(res_deps):
     return res_deps[0].sample(res_deps[1])
-
-
-def resample_parallel(data, name, deps, num_cpu, res):
-    # from threading import Thread
-    start = 0
-
-    q = mp.Queue()
-
-    threads = []
-    arrays = []
-    for i in range(num_cpu):
-        if i == num_cpu - 1:
-            stop = len(data)
-        else:
-            stop = start + int(len(data) / num_cpu)
-        ar = np.array([0]*(stop-start))
-        logging.info('Starting thread for events {s} to {e}'.format(s=start,
-                                                                    e=stop))
-        t = mp.Process(target=resample_thread, args=(deps, start, stop,
-                                                     res.copy(), ar, ))
-        t.start()
-        threads.append(t)
-        arrays.append(ar)
-
-        start += int(len(data) / num_cpu)
-
-    for t in threads:
-        t.join()
-
-    resampled = np.concatenate(arrays)
-
-    assert len(resampled) == len(data), \
-        "Mismatch in length of resampled branch and data"
-
-    data[name] = resampled
 
 
 parser = argparse.ArgumentParser()
