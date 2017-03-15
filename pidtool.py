@@ -366,8 +366,8 @@ def resample_branch(options):
         t_path = options.tree.split('/')[:-1]
         t_dir = f.Get("/".join(t_path))
         t_dir.cd()
-    print(resampled_data[pid_names].tail())
-    array2tree(resampled_data[pid_names].to_records(index=False),
+    print(resampled_data.tail())
+    array2tree(resampled_data.to_records(index=False),
                tree=t, name=options.tree)
     t.Write()
     f.Close()
