@@ -344,7 +344,7 @@ def resample_branch(options):
 
         for idx, var in enumerate(var_name):
             resampled_data_chunk[var] = resampled[idx]
-            if 'Trafo' in pid["name"] and options.transform:
+            if 'Trafo' in var and options.transform:
                 logging.info('Back trafo for {}'.format(var))
                 resampled_data_chunk[var.replace("Trafo", "Untrafo")] = \
                     back_transform(resampled[idx])
