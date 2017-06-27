@@ -316,6 +316,24 @@ def resample_branch(options):
 
     needed_branches = [f for task in config["tasks"] for f in task['features']]
 
+    # check if eta is in the tuple, if not store in a list to calculate later
+    pseudorapidities_to_calculate = list()
+    for idx, b in enumerate(needed_branches):
+        if b not in branches_in_file:
+            logging.info(
+                'I did not find {} among the branches in the file'.format(b)
+                )
+            if b.endswith('_eta'):
+                logging.info('But dont worry, I know how to calculate it')
+                head = b[:-4]
+                pseudorapidities_to_calculate.append(head)
+                needed_branches[idx] = head + '_P'
+                needed_branches.append(head + '_PZ')
+            else:
+                logging.error("I dont know how to calculate".format(b))
+                exit()
+    needed_branches = list(set(needed_branches))
+
     logging.info('Starting resampling...')
 
     resampled_data = DataFrame()
@@ -324,6 +342,12 @@ def resample_branch(options):
     for i, chunk in enumerate(read_root(options.source_file, options.tree,
                                         columns=needed_branches,
                                         chunksize=chunksize)):
+
+        for ps in pseudorapidities_to_calculate:
+            logging.info('Calculating pseudorapidity for {}'.format(ps))
+            p = chunk[ps + '_P']
+            pz = chunk[ps + '_PZ']
+            chunk[ps + '_eta'] = 0.5 * np.log((p + pz) / (p - pz))
 
         resampled_data_chunk = DataFrame()
         p = mp.Pool(processes=options.num_cpu)
@@ -353,7 +377,7 @@ def resample_branch(options):
         resampled_data = resampled_data.append(resampled_data_chunk,
                                                ignore_index=True)
 
-        # close the pool, wait for the precesses to end and then
+        # close the pool, wait for the processes to end and then
         # terminate them
         p.close()
         p.join()
